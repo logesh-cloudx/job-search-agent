@@ -1,0 +1,52 @@
+name: Job Search Agent
+
+on:
+  # Run every day at 9:00 AM IST (3:30 AM UTC)
+  schedule:
+    - cron: '30 3 * * *'
+  
+  # Also allow manual trigger
+  workflow_dispatch:
+
+jobs:
+  run-job-agent:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install groq requests python-telegram-bot pandas openpyxl beautifulsoup4 fake-useragent selenium webdriver-manager python-dotenv
+
+      - name: Run Job Agent
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          MIN_SALARY_LPA: ${{ secrets.MIN_SALARY_LPA }}
+          MAX_SALARY_LPA: ${{ secrets.MAX_SALARY_LPA }}
+          MIN_EXPERIENCE_YEARS: ${{ secrets.MIN_EXPERIENCE_YEARS }}
+          MAX_EXPERIENCE_YEARS: ${{ secrets.MAX_EXPERIENCE_YEARS }}
+        run: |
+          python agent.py
+
+      - name: Run Follow-up Bot
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python followup_bot.py
+
+      - name: Upload tracker
+        uses: actions/upload-artifact@v4
+        with:
+          name: job-applications
+          path: job_applications.xlsx
+          retention-days: 30
