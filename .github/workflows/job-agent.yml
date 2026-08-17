@@ -20,7 +20,11 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install groq requests python-telegram-bot pandas openpyxl beautifulsoup4 fake-useragent python-dotenv
+          pip install groq requests python-telegram-bot pandas openpyxl beautifulsoup4 fake-useragent python-dotenv playwright
+
+      - name: Install Playwright browser
+        run: |
+          playwright install --with-deps chromium
 
       - name: Run Job Agent
         env:
