@@ -5,7 +5,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from profile import MY_PROFILE
 from message_generator import generate_application_message, score_job_match
 from telegram_notifier import send_job_notification, send_summary
-from tracker import add_application, get_followup_jobs
+from tracker import add_application, get_followup_jobs, load_tracked_keys
 from scrapers.naukri_scraper import scrape_naukri
 from scrapers.indeed_scraper import scrape_indeed
 from scrapers.linkedin_scraper import scrape_linkedin
@@ -86,6 +86,16 @@ def remove_duplicates(jobs):
     return unique_jobs
 
 
+def filter_already_tracked(jobs):
+    tracked = load_tracked_keys()
+    fresh = [
+        job for job in jobs
+        if f"{job['title'].lower()}_{job['company'].lower()}" not in tracked
+    ]
+    print(f"🆕 After removing already-tracked: {len(fresh)} jobs (from {len(jobs)})")
+    return fresh
+
+
 def process_jobs(jobs):
     print("\n🤖 AI Scoring all jobs...")
     print("=" * 50)
@@ -127,6 +137,7 @@ def process_jobs(jobs):
 
         except Exception as e:
             print(f"   ⚠️ Error: {e}")
+            skipped_count += 1
             continue
 
     return applied_count, skipped_count
@@ -165,6 +176,7 @@ if __name__ == "__main__":
     unique_jobs = apply_all_filters(
         unique_jobs, min_lpa, max_lpa, min_exp, max_exp
     )
+    unique_jobs = filter_already_tracked(unique_jobs)
 
     applied, skipped = process_jobs(unique_jobs)
     send_summary(len(unique_jobs), applied, skipped)

@@ -3,103 +3,72 @@ from bs4 import BeautifulSoup
 import time
 import urllib.parse
 import random
+import json
 
 def get_headers():
-    user_agents = [
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Firefox/121.0',
-    ]
     return {
-        'User-Agent': random.choice(user_agents),
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml',
         'Accept-Language': 'en-US,en;q=0.9',
         'Referer': 'https://www.shine.com/',
     }
 
-def scrape_shine(keywords, location="India", pages=2):
-    """Scrape jobs from Shine.com"""
+def scrape_shine(keywords, pages=2):
     jobs = []
+    session = requests.Session()
+
+    try:
+        session.get('https://www.shine.com', headers=get_headers(), timeout=10)
+        time.sleep(1)
+    except:
+        pass
 
     for keyword in keywords:
         print(f"   🔍 Shine: Searching '{keyword}'...")
-
         for page in range(1, pages + 1):
             try:
-                params = {
-                    'q': keyword,
-                    'l': location,
-                    'pg': page
-                }
+                keyword_url = keyword.lower().replace(' ', '-')
+                url = f"https://www.shine.com/job-search/{keyword_url}-jobs"
 
-                url = "https://www.shine.com/job-search/" + \
-                      keyword.lower().replace(' ', '-') + \
-                      "-jobs?" + urllib.parse.urlencode(params)
+                params = {'q': keyword, 'pg': page}
+                url = f"{url}?{urllib.parse.urlencode(params)}"
 
-                response = requests.get(
-                    url,
-                    headers=get_headers(),
-                    timeout=15
-                )
+                response = session.get(url, headers=get_headers(), timeout=15)
 
                 if response.status_code != 200:
                     continue
 
                 soup = BeautifulSoup(response.text, 'html.parser')
 
-                job_cards = (
-                    soup.find_all('div', class_='jobCard') or
-                    soup.find_all('div', class_='job-card') or
-                    soup.find_all('article', class_='job-listing')
+                # Shine is a Next.js app - job data ships as embedded JSON,
+                # not stable HTML/CSS class names.
+                next_data = soup.find('script', id='__NEXT_DATA__')
+                if not next_data or not next_data.string:
+                    continue
+
+                data = json.loads(next_data.string)
+                results = (
+                    data.get('props', {})
+                        .get('pageProps', {})
+                        .get('initialState', {})
+                        .get('jsrp', {})
+                        .get('searchresult', {})
+                        .get('data', {})
+                        .get('results', [])
                 )
 
-                for card in job_cards:
+                for item in results:
                     try:
-                        title_elem = (
-                            card.find('h2') or
-                            card.find('h3') or
-                            card.find('a', class_='job-title')
-                        )
+                        title = item.get('jJT', 'Unknown')
+                        company = item.get('jCName', 'Unknown')
+                        salary = item.get('jSal') or "Not specified"
+                        experience = item.get('jExp') or "Not specified"
+                        jd_html = item.get('jJD', '')
+                        jd = BeautifulSoup(jd_html, 'html.parser').get_text(' ', strip=True) if jd_html else title
+                        slug = item.get('jSlug', '')
+                        job_url = f"https://www.shine.com/jobs/{slug}" if slug else ''
 
-                        company_elem = (
-                            card.find('span', class_='company-name') or
-                            card.find('div', class_='company')
-                        )
-
-                        salary_elem = (
-                            card.find('span', class_='salary') or
-                            card.find('div', class_='salary')
-                        )
-
-                        exp_elem = (
-                            card.find('span', class_='experience') or
-                            card.find('div', class_='exp')
-                        )
-
-                        link_elem = card.find('a', href=True)
-
-                        if not title_elem:
-                            continue
-
-                        title = title_elem.get_text(strip=True)
-                        company = company_elem.get_text(strip=True) \
-                            if company_elem else "Unknown"
-                        salary = salary_elem.get_text(strip=True) \
-                            if salary_elem else "Not specified"
-                        experience = exp_elem.get_text(strip=True) \
-                            if exp_elem else "Not specified"
-
-                        href = link_elem.get('href', '') \
-                            if link_elem else ''
-                        if href.startswith('/'):
-                            job_url = f"https://www.shine.com{href}"
-                        else:
-                            job_url = href
-
-                        jd_elem = card.find('div', class_='job-desc')
-                        jd = jd_elem.get_text(strip=True) \
-                            if jd_elem else title
-
-                        job = {
+                        jobs.append({
                             "title": title,
                             "company": company,
                             "salary": salary,
@@ -107,14 +76,11 @@ def scrape_shine(keywords, location="India", pages=2):
                             "platform": "Shine",
                             "url": job_url,
                             "jd": jd
-                        }
-
-                        jobs.append(job)
-
-                    except Exception:
+                        })
+                    except:
                         continue
 
-                time.sleep(random.uniform(1, 2))
+                time.sleep(random.uniform(1, 3))
 
             except Exception as e:
                 print(f"   ⚠️ Shine error: {e}")

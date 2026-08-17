@@ -1,14 +1,18 @@
 from groq import Groq
 import os
 import json
+from dotenv import load_dotenv
+
+# Load env file explicitly
+load_dotenv(dotenv_path="D:\\AI AGENTS\\job agent\\.env")
 
 def get_client():
     api_key = os.getenv("GROQ_API_KEY")
+    if not api_key:
+        raise ValueError("GROQ_API_KEY not found in .env file!")
     return Groq(api_key=api_key)
 
 def generate_application_message(job_title, company, jd_text, profile):
-    client = get_client()
-
     prompt = f"""
 You are helping {profile['name']} apply for a job.
 
@@ -39,18 +43,20 @@ Rules:
 Return ONLY the message text, nothing else.
 """
 
-    response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=400
-    )
+    try:
+        response = get_client().chat.completions.create(
+            model="openai/gpt-oss-20b",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=600,
+            reasoning_effort="low"
+        )
+    except Exception as e:
+        raise RuntimeError(f"Groq API call failed (generate_application_message): {e}")
 
     return response.choices[0].message.content
 
 
 def score_job_match(job_title, jd_text, profile):
-    client = get_client()
-
     prompt = f"""
 Analyze this job and score the match for this candidate.
 
@@ -74,11 +80,15 @@ Return ONLY this JSON format, nothing else:
 }}
 """
 
-    response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=400
-    )
+    try:
+        response = get_client().chat.completions.create(
+            model="openai/gpt-oss-20b",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=1024,
+            reasoning_effort="low"
+        )
+    except Exception as e:
+        raise RuntimeError(f"Groq API call failed (score_job_match): {e}")
 
     try:
         text = response.choices[0].message.content.strip()
@@ -88,9 +98,9 @@ Return ONLY this JSON format, nothing else:
                 text = text[4:]
         return json.loads(text)
     except Exception as e:
-        print(f"Error parsing score: {e}")
+        print(f"   ⚠️ Score parse error: {e}")
         return {
-            "score": 50,
+            "score": 60,
             "matching_skills": [],
             "missing_skills": [],
             "recommendation": "apply",

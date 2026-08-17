@@ -22,6 +22,14 @@ def get_headers():
 def scrape_naukri(keywords, location="India", pages=2):
     """Scrape jobs from Naukri using their API"""
     jobs = []
+    session = requests.Session()
+
+    # Warm up session cookies before hitting the API
+    try:
+        session.get('https://www.naukri.com/', headers=get_headers(), timeout=10)
+        time.sleep(1)
+    except Exception:
+        pass
 
     for keyword in keywords:
         print(f"   🔍 Naukri: Searching '{keyword}'...")
@@ -43,7 +51,7 @@ def scrape_naukri(keywords, location="India", pages=2):
 
                 url = "https://www.naukri.com/jobapi/v3/search?" + urllib.parse.urlencode(params)
 
-                response = requests.get(
+                response = session.get(
                     url,
                     headers=get_headers(),
                     timeout=15

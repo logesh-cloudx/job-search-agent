@@ -41,6 +41,15 @@ def add_application(job, score):
     print(f"✅ Tracked: {job['company']} - {job['title']}")
 
 
+def load_tracked_keys():
+    """Return the set of title_company keys already notified in a past run"""
+    df = load_tracker()
+    return set(
+        f"{str(role).lower()}_{str(company).lower()}"
+        for role, company in zip(df['Role'], df['Company'])
+    )
+
+
 def get_followup_jobs():
     """Get jobs that need follow up today"""
     df = load_tracker()
